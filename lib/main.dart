@@ -1,5 +1,7 @@
+
 import 'package:flutter/material.dart';
 import 'package:openvpn_flutter/openvpn_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -35,6 +37,11 @@ class _MyHomePageState extends State<MyHomePage> {
   late OpenVPN openvpn;
   VpnStatus status = VpnStatus.empty();
   VPNStage stage =VPNStage.disconnected;
+  TextEditingController password = TextEditingController();
+  TextEditingController username =  TextEditingController();
+  final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
+  bool isSaved=true;
+  String state = 'Disconnected';
   static const config = """client
 dev tun
 proto udp
@@ -126,6 +133,7 @@ EyrbVftMrFXIL5HMrtsu2sA=
 </key>""";
 
 
+
   @override
   void initState() {
     openvpn = OpenVPN(onVpnStatusChanged: _onVpnStatusChanged, onVpnStageChanged: _onVpnStageChanged);
@@ -134,6 +142,21 @@ EyrbVftMrFXIL5HMrtsu2sA=
         providerBundleIdentifier: "NETWORK_EXTENSION_IDENTIFIER", ///Example 'id.laskarmedia.openvpnFlutterExample.VPNExtension'
         localizedDescription: "LOCALIZED_DESCRIPTION" ///Example 'Laskarmedia VPN'
     );
+    super.initState();
+    _prefs.then((value) => {
+        this.username.text = value.getString('username')??'' ,
+        this.password.text = value.getString('password') ??''
+   });
+  }
+
+  saveCreds(){
+    if(isSaved){
+      _prefs.then((value) => {
+        value.setString('username', username.text.trim()),
+        value.setString('password', password.text.trim())
+      });
+    }
+
   }
 
   void _onVpnStatusChanged(VpnStatus? vpnStatus){
@@ -144,6 +167,35 @@ EyrbVftMrFXIL5HMrtsu2sA=
 
   void _onVpnStageChanged(VPNStage? stage,String message){
     setState((){
+      switch(stage){
+        case VPNStage.connected:
+          this.state = "CONNECTED";
+          break;
+        case VPNStage.disconnected:
+          this.state = "DISCONNECTED";
+          break;
+        case VPNStage.disconnecting:
+          this.state = "DISCONNECTING...";
+          break;
+        case VPNStage.connecting:
+          this.state = "CONNECTING...";
+          break;
+        case VPNStage.authenticating:
+          this.state = "AUTHENTICATING...";
+          break;
+        case VPNStage.authentication:
+          this.state = "AUTHENTICATION";
+          break;
+        case VPNStage.error:
+          this.state = "ERROR";
+          break;
+        case VPNStage.assign_ip:
+          this.state = "GETTING IP...";
+          break;
+        default:
+          this.state = "CONNECTING...";
+          break;
+      }
       this.stage = stage!;
     });
   }
@@ -151,11 +203,7 @@ EyrbVftMrFXIL5HMrtsu2sA=
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text("BandokitVPN"),
-        centerTitle: true,
-      ),
+
       body:  Container(
         height: MediaQuery.of(context).size.height,
         width: MediaQuery.of(context).size.width,
@@ -165,27 +213,91 @@ EyrbVftMrFXIL5HMrtsu2sA=
         ),
         child: Center(
           child: Column(
-
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
+              Image.asset('assets/crash.png',height: 150,width: 150,fit: BoxFit.contain,),
+              Card(
+                
+                child: Container(
+                  margin: EdgeInsets.all(8),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: username,
+                        decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
 
+                            ),
+                            hintText: 'Username',
+                            prefixIcon: Icon(Icons.person)
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      Padding(padding: EdgeInsets.only(top: 5)),
+                      TextField(
+                        controller: password,
+                        decoration: InputDecoration(
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+
+                            ),
+                            hintText: 'Password',
+
+                            prefixIcon: Icon(Icons.vpn_key)
+                        ),
+                        obscureText: true,
+                        textAlign: TextAlign.center,
+                      ),
+                      Row(children: [
+                        Checkbox(value: isSaved, onChanged: (v)=>setState(() {
+                          isSaved = !isSaved;
+                        })),
+                        Text('Save username and password?')
+                      ],),
+                      Padding(padding: EdgeInsets.only(top: 5)),
+                      MaterialButton(onPressed: ()=>{
+                        if(stage == VPNStage.disconnected && username.text.length>0 && username.text.length>0){
+                          saveCreds(),
+                        openvpn.connect(config, 'sharif',username: username.text.trim(),password: password.text.trim(),bypassPackages: [],certIsRequired: true)
+                      }else{
+                        openvpn.disconnect()
+                      }},
+                        color: stage == VPNStage.disconnected ?Colors.green:Colors.red,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(stage == VPNStage.disconnected ?'Connect':'Disconnect',style: TextStyle(color: Colors.white,fontWeight: FontWeight.bold),),
+                          Padding(padding: EdgeInsets.only(left: 5)),
+                          Icon(stage == VPNStage.disconnected ?Icons.vpn_key:Icons.vpn_lock,color: Colors.white,)
+                        ],
+                      ),
+                      )
+
+                    ],
+                  ),
+                )
+              ),
+
+/*              stage == VPNStage.connected ?
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                Text('Connection time:'),
-                Text("${status.connectedOn?.toString()}",style: new TextStyle(locale: Locale.fromSubtags(countryCode: "IR",languageCode: "fa")))
-              ],),
+
+                  Text('Connection time:',style: TextStyle(color: Colors.grey,fontWeight: FontWeight.bold),),
+                Text("${status.connectedOn?.hour}:${status.connectedOn?.minute}:${status.connectedOn?.second} ",style: new TextStyle(color: Colors.orange))
+              ],):Padding(padding: EdgeInsets.zero),*/
 
               Text(
-                '$stage',
+                '$state',style: TextStyle(color: Colors.amberAccent,fontWeight: FontWeight.bold),
               ),
 
             ],
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+/*      floatingActionButton: FloatingActionButton(
         backgroundColor: stage == VPNStage.disconnected ? Colors.red:Colors.green,
         onPressed: ()=>{
           if(stage == VPNStage.disconnected){
@@ -195,7 +307,19 @@ EyrbVftMrFXIL5HMrtsu2sA=
           }
         },
         child: stage == VPNStage.disconnected ? Icon(Icons.vpn_key_off):Icon(Icons.vpn_key) ,
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      ),*/ // This trailing comma makes auto-formatting nicer for build methods.
     );
+  }
+
+  @override
+  void dispose() {
+
+    if(!isSaved){
+      _prefs.then((value) => {
+        value.setString('username', ''),
+        value.setString('password', '')
+      });
+    }
+    super.dispose();
   }
 }
